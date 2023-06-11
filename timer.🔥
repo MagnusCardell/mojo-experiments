@@ -1,0 +1,15 @@
+from Time import now
+from LLCL import num_cores
+
+print("num hardware threads:")
+print(num_cores())
+
+var eval_begin = now()
+var s = 2
+var eval_end = now()
+let execution_time_sequential = Float64((eval_end - eval_begin))
+print("execution_time sequential in ms:")
+print(execution_time_sequential / 1000000)
+
+
+#print(execution_time_sequential/execution_time_parallel)

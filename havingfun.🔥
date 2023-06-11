@@ -1,0 +1,141 @@
+# Recursive structs and recursive fn does not work...
+from Pointer import Pointer
+
+struct Node:
+    var data: AnyType
+    var left: Pointer[Node]
+    var right: Pointer[Node]
+    
+    fn get_left() -> Pointer[Node]:
+        return left.bitcast[Node]()
+    fn get_right() -> Pointer[Node]:
+        return right.bitcast[Node]()
+    
+    fn inorder(self, p: Pointer[Node]):
+        let s = p.load()
+        if(s is None):
+            return
+        self.inorder(p.get_left())
+        print(p.data)
+        self.inorder(p.get_right())
+
+fn simple(message: VariadicList[StringLiteral]) -> Int:
+    for i in range(message.__len__()):
+        if( set( message[i:i+14] ).__len__() == 14):
+            return i + 1
+    return 0
+
+
+from Pointer import Pointer
+from IO import print_no_newline
+from String import StringLiteral
+struct HeapArray:
+    var data: Pointer[StringLiteral]
+    var size: Int
+    var cap: Int
+
+    fn __init__(inout self):
+        self.cap = 16
+        self.size = 0
+        self.data = Pointer[StringLiteral].alloc(self.cap)
+
+    fn __init__(inout self, size: Int, val: StringLiteral):
+        self.cap = size * 2
+        self.size = size
+        self.data = Pointer[StringLiteral].alloc(self.cap)
+        for i in range(self.size):
+            self.data.store(i, val)
+
+    fn __copyinit__(inout self, other: Self):
+        self.cap = other.cap
+        self.size = other.size
+        self.data = Pointer[StringLiteral].alloc(self.cap)
+        for i in range(self.size):
+            self.data.store(i, other.data.load(i))
+            
+    fn __del__(owned self):
+        self.data.free()
+
+    fn dump(self):
+        print_no_newline("[")
+        for i in range(self.size):
+            if i > 0:
+                print_no_newline(", ")
+            print_no_newline(self.data.load(i))
+        print("]")
+
+
+from List import VariadicList
+
+struct MySIMD[size: Int]:
+    var value: HeapArray
+
+    # Create a new SIMD from a number of scalars
+    fn __init__(inout self, *elems: StringLiteral):
+        self.value = HeapArray(size, "")
+        let elems_list = VariadicList(elems)
+        for i in range(elems_list.__len__()):
+            self[i] = elems_list[i]
+
+    fn __copyinit__(inout self, other: MySIMD[size]):
+        self.value = other.value
+
+    fn __getitem__(self, i: Int) -> StringLiteral:
+        return self.value.data.load(i)
+    
+    fn __setitem__(self, i: Int, val: StringLiteral):
+        return self.value.data.store(i, val)
+
+    # Fill a SIMD with a duplicated scalar value.
+    fn splat(self, x: Int) -> Self:
+        for i in range(size):
+            self[i] = x
+        return self
+
+    # Many standard operators are supported.
+    fn __add__(self, rhs: MySIMD[size]) -> MySIMD[size]:
+        let result = MySIMD[size]()
+        for i in range(size):
+            result[i] = self[i] + rhs[i]
+        return result
+    
+    fn __sub__(self, rhs: Self) -> Self:
+        let result = MySIMD[size]()
+        for i in range(size):
+            result[i] = self[i] - rhs[i]
+        return result
+
+    fn concat[rhs_size: Int](self, rhs: MySIMD[rhs_size]) -> MySIMD[size + rhs_size]:
+        let result = MySIMD[size + rhs_size]()
+        for i in range(size):
+            result[i] = self[i]
+        for j in range(rhs_size):
+            result[size + j] = rhs[j]
+        return result
+
+    fn dump(self):
+        self.value.dump()
+
+from Vector import DynamicVector
+from String import String
+fn vector_solution(message: String) -> UInt8:
+    for i in range(message.__len__()):
+        var v = DynamicVector[String](14)
+        var m = message[i:i+14]
+        # O(n)
+        for j in range(m.__len__()):
+            # bounded work by vector length = 14 so O(1)
+            for p in range(v.size):
+                if v[p] == m[j]:
+                    continue
+            v.push(m[j])
+        return i + 15
+    return 0
+    
+
+
+let input = "qvllndllhzhfzhhdzhddhjdjggvnvhvccmffwllqgqmmfjfqfhhtrrzczjczzlplddfpptqqfbqffmnmjnnqppfjfccgnnmqqsvvdbbgppjvpjvpjjctjjttwtrrdldlcddrvddqndqnqwqwzwfwwzczggcppgzpzhpzhppprfffbhhwmhhtftstrsrvsrvsrvvshvssnwwpllhfhnnfflcltlblzlqlvqlvlcldcccpptggtdgdjdbbrggmbmnncscbssqrrjddvcvgvfflpppgpvphvphhpcpzpzvvctvctvthtwtfwwbrrhhlplmlwwlqlnlhhtmhmmqlqplllrvrgvrvrffzfgfjfjtjmjvmjmwmvvjffmpfphfhvfvmfvmmhpphhltthgttgccqggpzpfpqpcpvcpvcvvqtqvqbbrlrtllmrmllhmhvmhhvzhvzvrrrzjzbbtvvbgvbbfnnqndqnnpnbnbnlnggwqggmgmqmgmbbmccgqcqbccpvcvnnhvvrvlrrcwrcwrcwrwbrwwzbwbdbfddpttntzzjszsnznbndnzngzgccjrcjchcffmlmqqlrqqzsqzzsbsnsttzpztpzpggzrrttbqqplpqlqjjqcqvccdzdccthccvfcvvqvhqhfhhzwzpzwppgpttntssflfjjrwrqrjrppptlltptpvttpfpwpswpppzzsrzssqllbnlljpllrjllsrlrhrdrmdrmrrpsrprnrffgrffdqdhdqhhrhggwqqlddsbsqbqtqdtdhdvhhbdhdzhdhhtrrppzddgfgzgpzpvpfpnpptggltggbnbppqffzfrzzzsbsrrdgrddwsdsqddhpdpbpvpfvppfsfgfngffzmzbzlblclsccvqvqmmjtjqtjjlcjllsddjqddhldlvlrrbgbrgbrrdzzpfpggqnqbqrrqbbgjgppqgpgwgqqndncndnpdnnbvbnvnwnjjgppzlplqqdgqghqgqzggjssqmmwwcfcpptrpprggrppgbplmzwmdtnpqwzcrthqbppwbgcvgqrpfpnbscnhvrllpvpqwnsslcjrqtvdccprvqfrpswtpvzdzlgtmmvppdmhgdbbsmrbqpqspdhpqgfjznqzphrnggcbzhdqrgvzcfzrhtrlssgmjjghqsjtghhnwjffqrrfslfnsvvdvfjqbfpffrrstdhggvbfwtfpfgswqlfdrnjpjmwzptlbmwgghgwqrphcrvfmhrplllgbnjlprllmjwccphsflntgpnbmdbfqcdsbgvrnfznfrlcfvswqfrqvdnbjsflnsmlcrdstzppmcvbgdtcvgztbdzqbwhmwcfvbwjjcdgbnwjwzrrdqhpgscwtnztjsfstzfwftcldjgvdvwbzrlbdslwttbqpnlwbjcjwqgtrgcglsgtdqbqbnqznptzzbwffwlwzvvtdpcjbvhnswzptclpbndcdvsfmcrmwwgzdfsszqjjdztmtsqgfqzjpctfdpwnzbpnzzwngqnghntblndfrnjzdrmgbqmzbdqfzctrgshwqgfgqssqjltrqlzjswjhmpgwwjdwcjpnsvgrvbfpmlmmwzmbdjwsrjthppfrccjgnmwlvqlprgslbwtbbzlqbznczmsmhsfdcqnwblprcpbzzwfllbnldvpjcwsdhglrzjsptmsjdjqzsmgvhjfjrrtvvbjlmzjsntnrggwbpjlrjggfgqzvswtggthzfmfjnmrzrttbzqpwpsnmdtnbfblpfgslgcmjlbdpshnnrbhvwsbrnvdmjqhvhdjhbfzjmqrmqmdthhzvnrmqcnbtwcdjdqfvdgvmfbhrfqnmdncrddggtcppjlznbsnntppjtnsqsrjwvfrzpnzqcrzhhdflfmmtmwcvtpzbqhdwsczffcqhtdbdjblmgnrmhlqcsvcpgghhvwqhdtzpzlpfllchzltqgcwgfqnbzhgzmdwqdlwnvhqmpqjqnjbhjctslghdqvctdmjfwdfpdjnhdndzwsfjzlmsbmfmzvnvpqgqhtngvgqmlrrzsfmwlcwsscvghjvrzjjqbnplnjzqswpblwzwczhwbhhnjmctnmwlbqqfmnlwdcrptlmfjpjrnpcvmhffjhwhmntdzpdjzwzhrrsdvmjlwdtcpvjfmfzfsrgjghhlvmjjjczgmhvrfpgqbnhldwbrjgzmnszzbssfzcggrwmdfvddwsdmnwtwfwlfnwlvzlctfblbtrjvcwjjdljplcrjhwqslppwwtvfqwsjlfmdznmcdzdmgvmmsrfcclcvhtrhlsjzrbjwrjlfnvqhqvmpzmdttnbhfcvnqlrqbcsvtvwfccjstjpmhqgwlnrzjjmfdszflmglrdbpqhqhqsdfzrcljbdvvnlcqfllmnqcjfzjppdsjwshfschzqbnwfqnpwhqnmwsjbtcgvrljsrtzvcvghcjjlqsngglcggqpntrrhbjpbfhmvpltmnfmfdtwnczwfbvjcqnhvppjftwvwsrlhvvcjtsfptpqgrmrqwwddnqmnmfgrlnphbpqhhhvglqgtwvnwvnbssftmwttmfrffwtzhrpqspclvgchwqwcsgwqwwvpgcwngrcfmhbhflwfbfchlphdzdcrflfmfclsngtlwrqcrsgrdzcpdsvvcdbhgtljmbntbbcqgjqfsbfwzlfsnljpjdcnmjlqrwpmlvwgdlrrdgfhdqhzgltmclzgzzhmrbggsmgtpqdrgmjtlzwstrwbpvhppvsmdqvvwwglzjgdswjszqmrdbmshbhhcstpcsjdbvgjnvcmvhbtclrlmlgnvppgvncsrfchdbqjrclwwlnchmcgvshfsbsvvcvjrsgjlnsfqtqmgntffwnqjtldcqbcqhsgztllstswwqnfrswpchqhnfzzzszqjztzfrgrbjdbjlpvqfqrlrmmpbfbbcclrgmnlzwqrjhqrstswjpgsrtnlwsbqthzpvdzllzqmdmbvvtcztftvlwphhjzbfnrvccfmhmvmzlbrzlnppfzcsffjvjmbgpvlwgwszpztjpsrbnftqtdrbnljtbrjzzbwlsvtwtlwptdtnmtncvcblcmdngjzmctlqtzchncccnwjzrrmmmnllbhrnhwtqjsnvcslrqjfbfndqvdlrjshdzmlprtzbtnhthdqhplwzdbnjmgzlzrbzrvrqnflwfmsmbssqnbcddnvdpltpmplpdzvtjrslcdcnrdplwtjtvctwfzhlvwwqqtbqcjjwhhnpmvgzhqmqfgthwbphrmrtdghchsmwghdqjgjgmpddbrtngtvhqgjfrplrdgpbnhqvswrmqhcmsqvsqmqsgwjndwjrbrhvrctmmrmfwpsgfgdlrzpslpflgvwrgcthgcrnhgrzsmqdgdssjgspfhmqfmjfpmwqhnfjdvqzhpndvnbmqglbrjmdrwgmgctrgzpsdvfbmcstcslblmvnprphntgslmlrqwthrndrhtbccgzzfsglhgqztcsnqjwfzbzlvrpbvswbhrwdsrhrrpnrmsbvbvjccbdsdcfrrzpgwjtnnnvjwlcppwzdqsbdzpfjplrlfgvjpsmbzwpwlghnvqgddfjvrsztrpzlfgmqqzrfcgglghndbhgbmldglclhldljjdslvhzshshtqwhqnbzhvqrcmwdmcmhjcrmdmhrwnwcbhvbbrwrbtfdnztwnbpdfjfhgrmcpngftsvbsmsptnwcvvllnmbnsntbzmwnhfdptbtzswtjzdqwjdhprnjwvhzpscjvlsgrhdrmmrmhzhwwtslzdjqmzfncnmgplhnmwrvqhslvchtjcmpzpjpnpfbjptvvwcsmhgdjtsqrjlfpnfdncpqqmpgpvtlvwljlsqbnhtsqgfwlsmdjpgtvgjvjcrnnzmbllqzlrfdnlffgmtphhhgbcjgdlpzqpwmjwtcmdrsmtnmddftwczbsddtppsptbwfvpnfnsqmsgcfqfmnzffzqgcdvwzrgdwhmnzmrlhcdpdsltnsmjzdqwmmpwvjqbbwsrfgzh"
+var output = vector_solution(input)
+print(output)
+
+
